@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"os/user"
 	"strconv"
 	"strings"
 	"time"
@@ -16,7 +17,9 @@ import (
 var settings map[string]string
 
 const permissions = 0666
-const setPath = "../eulerdata/settings.dat"
+
+var setPath = parsePath("~/.euler-tools")
+
 const penet = "http://projecteuler.net"
 const probCount = 1000 //some number > #problems
 
@@ -25,6 +28,18 @@ var authenticated bool = false
 
 type myjar struct {
 	jar map[string][]*http.Cookie
+}
+
+func parsePath(path string) string {
+
+	usr, _ := user.Current()
+	dir := usr.HomeDir + "/"
+
+	if path[:2] == "~/" {
+		path = strings.Replace(path, "~/", dir, 1)
+	}
+	return path
+
 }
 
 func (p *myjar) SetCookies(u *url.URL, cookies []*http.Cookie) {
