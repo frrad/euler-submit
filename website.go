@@ -1,5 +1,14 @@
 package main
 
+import (
+	"fmt"
+	"io/ioutil"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
+)
+
 var client = &http.Client{}
 var authenticated bool = false
 
