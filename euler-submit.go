@@ -121,7 +121,7 @@ func parse(spec string) (list []int, err bool) {
 func main() {
 	setupClient()
 
-	setPath := parsePath("~/.euler-tools")
+	setPath := parsePath("~/.euler-tools/settings.dat")
 	setSettings(setPath, &settings)
 
 	switch len(os.Args) {
