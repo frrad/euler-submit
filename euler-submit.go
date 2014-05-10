@@ -1,238 +1,24 @@
 package main
 
 import (
-	"euler"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
-	"os/user"
 	"strconv"
 	"strings"
 	"time"
 )
 
-var settings map[string]string
-
 const permissions = 0666
-
-var setPath = parsePath("~/.euler-tools")
-
-const penet = "http://projecteuler.net"
-const probCount = 1000 //some number > #problems
-
-var client = &http.Client{}
-var authenticated bool = false
-
-type myjar struct {
-	jar map[string][]*http.Cookie
-}
-
-func parsePath(path string) string {
-
-	usr, _ := user.Current()
-	dir := usr.HomeDir + "/"
-
-	if path[:2] == "~/" {
-		path = strings.Replace(path, "~/", dir, 1)
-	}
-	return path
-
-}
-
-func (p *myjar) SetCookies(u *url.URL, cookies []*http.Cookie) {
-	//fmt.Printf("The URL is : %s\n", u.String())
-	//fmt.Printf("The cookie being set is : %s\n", cookies)
-	p.jar[u.Host] = cookies
-}
-
-func (p *myjar) Cookies(u *url.URL) []*http.Cookie {
-	//fmt.Printf("The URL is : %s\n", u.String())
-	//fmt.Printf("Cookie being returned is : %s\n", p.jar[u.Host])
-	return p.jar[u.Host]
-}
 
 func say(message string, level int) {
 	debugLevel, _ := strconv.Atoi(settings["debug"])
 	if debugLevel >= level {
 		fmt.Println(message)
 	}
-}
-
-//given an authenticated client writes status.html to given path
-func getStatus() {
-
-	if !authenticated {
-		auth(client)
-	}
-
-	say("Fetching progress page...", 2)
-	resp, err := client.Get(penet + "/progress")
-	if err != nil {
-		fmt.Printf("Error : %s", err)
-	}
-
-	b, _ := ioutil.ReadAll(resp.Body)
-	resp.Body.Close()
-	say("Progress page downloaded.", 1)
-
-	say("Writing page to "+settings["statusPath"], 3)
-	ioutil.WriteFile(settings["statusPath"], b, permissions)
-
-	say(string(b), 5)
-
-	//fmt.Println(string(b))
-}
-
-func auth(client *http.Client) {
-
-	say("Authenticating...", 2)
-
-	form := make(url.Values)
-	form.Set("username", settings["username"])
-	form.Set("password", settings["password"])
-	form.Set("remember", "1")
-	form.Set("login", "Login")
-
-	// Authenticate
-	_, err := client.PostForm(penet+"/login", form)
-	if err != nil {
-		fmt.Printf("Error Authenticating: %s", err)
-	}
-
-	say("Authenticated", 1)
-	authenticated = true
-
-}
-
-func getData(path string) map[string]string {
-	sets := euler.Import(path)
-
-	out := make(map[string]string)
-
-	for _, line := range sets {
-		two := strings.SplitN(line, ":", 2)
-		out[two[0]] = two[1]
-	}
-
-	return out
-}
-
-func putData(path string, data map[string]string) {
-	out := ""
-	for i := 0; i < probCount; i++ {
-		word := strconv.Itoa(i)
-		if ans, ok := data[word]; ok {
-			out += word + ":" + ans + "\n"
-		}
-	}
-
-	ioutil.WriteFile(path, proccess(out), permissions)
-}
-
-func proccess(a string) []byte {
-	out := make([]byte, 0)
-	for i := 0; i < len(a); i++ {
-		out = append(out, a[i])
-	}
-	return out
-}
-
-//takes authenticated client, problem number and solution: submits answer
-func submit(problem int, solution string) (worked bool, message string) {
-	if !authenticated {
-		auth(client)
-	}
-
-	pname := strconv.Itoa(problem)
-	theURL := penet + "/problem=" + pname
-
-	say("Fetching Problem... "+pname, 2)
-	resp, err := client.Get(theURL)
-	say("Problem Downloaded.", 1)
-
-	if err != nil {
-		return false, "Fetching problem failed"
-	}
-
-	b, _ := ioutil.ReadAll(resp.Body)
-	resp.Body.Close()
-
-	page := string(b)
-
-	capStart := strings.Index(page, "<img src=\"captcha")
-	if capStart == -1 {
-		if strings.Contains(page, "Completed on ") || strings.Contains(page, "Go to the thread for") {
-			say("Problem Already Completed", 1)
-			answerStart := strings.Index(page, "Answer:")
-			trunc := page[answerStart:]
-			aStart := strings.Index(trunc, "<b>")
-			aEnd := strings.Index(trunc, "</b>")
-			correctAnswer := trunc[aStart+3 : aEnd]
-
-			if correctAnswer == solution {
-				return true, ""
-			} else {
-				return false, "Problem Solved: " + correctAnswer
-			}
-
-		} else {
-
-			return false, "Can't find captcha in problem page."
-		}
-	}
-	capEnd := strings.Index(page[capStart+10:], "\"")
-	capURL := page[capStart+10 : capStart+10+capEnd]
-
-	say("Downloading Captcha...", 2)
-	resp, err = client.Get(penet + "/" + capURL)
-	say("Captcha Downloaded.", 1)
-
-	if err != nil {
-		return false, "Fetching captcha failed."
-	}
-
-	b, _ = ioutil.ReadAll(resp.Body)
-	resp.Body.Close()
-
-	fmt.Println("Cracking Captcha...")
-	captcha := crackCap(b)
-
-	fmt.Println("Captcha Solved:", captcha)
-
-	form := make(url.Values)
-	form.Set("guess_"+pname, solution)
-	form.Set("confirm", captcha)
-
-	fmt.Println("Submitting...")
-	//Submit
-	resp, err = client.PostForm(theURL, form)
-	if err != nil {
-		return false, "Trouble submitting solution"
-	}
-
-	b, _ = ioutil.ReadAll(resp.Body)
-	resp.Body.Close()
-
-	page = string(b)
-
-	if strings.Contains(page, "answer_wrong.png") {
-		return false, "Wrong answer!"
-	}
-
-	if strings.Contains(page, "answer_correct.png") {
-		return true, ""
-	}
-
-	if strings.Contains(page, "The confirmation code you entered was not valid") {
-
-		return false, "Captcha Failed!"
-	}
-
-	return false, "wtf?"
-
 }
 
 func crackCap(b []byte) (crack string) {
@@ -250,6 +36,7 @@ func crackCap(b []byte) (crack string) {
 	return
 }
 
+//A wrapper for submit which checks against known list
 func fancySubmit(x int, ans string) bool {
 
 	if known, correct := check(x, ans); !known {
@@ -289,36 +76,8 @@ func fancySubmit(x int, ans string) bool {
 
 }
 
-func list(x int, ans string) {
-	known := getData(settings["knownPath"])
-
-	if _, ok := known[strconv.Itoa(x)]; ok {
-		say("Answer already in list.", 1)
-		return
-	}
-
-	say("Adding answer to list...", 2)
-	known[strconv.Itoa(x)] = ans
-	putData(settings["knownPath"], known)
-	say("Answer added to list.", 1)
-}
-
-func check(x int, ans string) (present, correct bool) {
-	known := getData(settings["knownPath"])
-
-	if rightAnswer, ok := known[strconv.Itoa(x)]; ok {
-		if ans == rightAnswer {
-			return true, true
-		} else {
-			return true, false
-		}
-
-	}
-
-	return false, false
-
-}
-
+//Parses user-submitted problem range specification, returning a list of
+//problems, and err == nil if successful.
 func parse(spec string) (list []int, err bool) {
 	splitted := strings.Split(spec, "-")
 
@@ -362,26 +121,10 @@ func parse(spec string) (list []int, err bool) {
 }
 
 func main() {
+	setupClient()
 
-	client = &http.Client{}
-
-	jar := &myjar{}
-	jar.jar = make(map[string][]*http.Cookie)
-	client.Jar = jar
-
-	settings = make(map[string]string)
-	settings["capPath"] = parsePath("~/Projects/project-euler/eulerdata/captcha/") //trailing slash!
-	settings["knownPath"] = parsePath("~/Projects/project-euler/eulerdata/known.txt")
-	settings["statusPath"] = parsePath("~/Projects/project-euler/eulerdata/status.html")
-	settings["imageViewer"] = "eog"
-	settings["debug"] = "3"
-
-	say("Reading settings from file...", 1)
-	fileSets := getData(setPath)
-	for key, val := range fileSets {
-		//settings from file overwrite defaults
-		settings[key] = val
-	}
+	setPath := parsePath("~/.euler-tools")
+	setSettings(setPath, &settings)
 
 	switch len(os.Args) {
 	case 1:
