@@ -20,8 +20,8 @@ func setSettings(path string, settingMap *map[string]string) {
 	settings = make(map[string]string)
 
 	settings["capPath"] = parsePath("~/Projects/project-euler/eulerdata/captcha/") //trailing slash!
-	settings["knownPath"] = parsePath("~/Projects/project-euler/eulerdata/known.txt")
-	settings["statusPath"] = parsePath("~/Projects/project-euler/eulerdata/status.html")
+	settings["knownPath"] = parsePath("~/.euler-tools/known.txt")
+	settings["statusPath"] = parsePath("~/.euler-tools/status.html")
 	settings["imageViewer"] = "eog"
 	settings["debug"] = "3"
 
