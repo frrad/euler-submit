@@ -25,6 +25,10 @@ func setSettings(path string, settingMap *map[string]string) {
 	settings["imageViewer"] = "eog"
 	settings["debug"] = "3"
 
+	settings["extensions"] = ".go.py"
+	settings["exec.go"] = "go run %s/%s"
+	settings["exec.py"] = "python2 %s/%s"
+
 	//TODO: use parsePath to parse those settings which are paths
 	say("Reading settings from file...", 1)
 	fileSets := getData(path)
