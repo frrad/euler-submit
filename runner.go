@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func detectExec(n int, files []string) (filename, extension string) {
@@ -72,6 +73,8 @@ func runProb(n int) (works bool, message, output string) {
 	//splits := strings.Split(resolution, " ")
 	//cmd := exec.Command(resolution[0], resolution[1:]...)
 
+	starttime := time.Now()
+
 	cmd := exec.Command("sh", "-c", resolution)
 
 	out, err := cmd.StdoutPipe()
@@ -95,22 +98,15 @@ func runProb(n int) (works bool, message, output string) {
 	out.Close()
 
 	programOutput := strings.Split(string(b), "\n")
-
-	time := ""
+	time := fmt.Sprintf("Elapsed time: %v", time.Since(starttime))
 
 	for i := len(programOutput) - 1; i >= 0; i-- {
-
 		line := programOutput[i]
 
 		say(line, 5)
 
-		if strings.Contains(line, "Elapsed") {
-			time = line
-
-		}
 		if len(line) > 0 && !strings.Contains(line, "Elapsed") {
 			return true, time, line
-
 		}
 	}
 
