@@ -36,7 +36,7 @@ func detectExec(n int, files []string) (filename, extension string) {
 	return "", ""
 }
 
-func resolveCmd(path, name, extension string) []string {
+func resolveCmd(path, name, extension string) string {
 	pfstr := settings["exec."+extension]
 	//fmt.Println(pfstr)
 
@@ -44,7 +44,8 @@ func resolveCmd(path, name, extension string) []string {
 
 	//fmt.Println(mid)
 
-	return strings.Split(mid, " ")
+	return mid
+
 }
 
 func runProb(n int) (works bool, message, output string) {
@@ -68,8 +69,10 @@ func runProb(n int) (works bool, message, output string) {
 	}
 
 	resolution := resolveCmd(path, nstr, ext)
-	//fmt.Println(resolution)
-	cmd := exec.Command(resolution[0], resolution[1:]...)
+	//splits := strings.Split(resolution, " ")
+	//cmd := exec.Command(resolution[0], resolution[1:]...)
+
+	cmd := exec.Command("sh", "-c", resolution)
 
 	out, err := cmd.StdoutPipe()
 	if err != nil {
